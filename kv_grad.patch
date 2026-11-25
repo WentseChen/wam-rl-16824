@@ -1,0 +1,11 @@
+--- a/models/small_wam.py
++++ b/models/small_wam.py
+@@ -432,7 +432,7 @@
+                 if isinstance(grid_sizes, dict)
+                 else rope_apply(video_k, grid_sizes, freqs)
+             )
+-        return video_k.detach(), video_v.detach()
++        return video_k, video_v
+ 
+     def _empty_video_cache(
+         self,
