@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status:** BC, Action-only and Video-only are final. Joint training is finished (12/12 iterations); its evaluation is **pending**.
+> **Status:** all training is finished. Joint lacks 8 of the 48 handover_block episodes (see Limitations).
 
 ## Results
 
@@ -11,13 +11,19 @@ Successes out of 48 (paired evaluation seeds, `demo_randomized`, unseen instruct
 
 | Task | BC | Action-only | Video-only | Joint | Paper (rand.) |
 |---|---|---|---|---|---|
-| handover_mic (train) | 23 (47.9%) | 22 (45.8%) | 21 (43.8%) | pending | 69% |
-| stack_blocks_three (train) | 25 (52.1%) | 30 (62.5%) | 27 (56.2%) | pending | 60% |
-| blocks_ranking_size (not in RL) | 19 (39.6%) | 22 (45.8%) | 19 (39.6%) | pending | 45% |
-| handover_block (not in RL) | 28 (58.3%) | 29 (60.4%) | 22 (45.8%) | pending | 58% |
-| **Total / 192** | 95 (49.5%) | 103 (53.6%) | 89 (46.4%) | pending | |
+| handover_mic (train) | 23 (47.9%) | 22 (45.8%) | 21 (43.8%) | 21 (43.8%) | 69% |
+| stack_blocks_three (train) | 25 (52.1%) | 30 (62.5%) | 27 (56.2%) | 32 (66.7%) | 60% |
+| blocks_ranking_size (not in RL) | 19 (39.6%) | 22 (45.8%) | 19 (39.6%) | 23 (47.9%) | 45% |
+| handover_block (not in RL) | handover_block, first 8 seeds excluded (n=40) | 23 (57.5%) | 25 (62.5%) | 18 (45.0%) | 24 (60.0%)† | |
+| handover_block, all 48 (not in RL) | 28 (58.3%) | 29 (60.4%) | 22 (45.8%) | — | 58% |
+| **Total, seeds Joint has (184)** | 90 (48.9%) | 99 (53.8%) | 85 (46.2%) | 100 (54.3%) | |
+| **Total, all 192** | 95 (49.5%) | 103 (53.6%) | 89 (46.4%) | — | |
 
-Paired exact McNemar vs. BC, pooled: Action +26/-18, p=0.29; Video +14/-20, p=0.39. **Neither differs significantly from BC.** The smallest per-task p is Video on handover_block (+0/-6, p=0.031), which does not survive correction for 8 comparisons.
+† Joint was evaluated on an H200, the others on A6000 (see Limitations).
+
+Paired exact McNemar vs. BC, pooled: Action +26/-18, p=0.29; Video +14/-20, p=0.39. Joint (184 seeds): +23/-13, p=0.13. **None differs significantly from BC.** The smallest per-task p-values (Video on handover_block +0/-6, p=0.031; Joint on stack_blocks_three +8/-1, p=0.039) do not survive correction for 12 comparisons.
+
+Joint vs. Action: +15/-14, p=1.00. Joint vs. Video: +24/-9, p=0.014, not corrected and not planned in advance. Run `python summarize.py` for every test.
 
 | Training | Action | Video | Joint |
 |---|---|---|---|
@@ -60,7 +66,8 @@ Run `prep` first (text cache and BC baseline); the others wait for its cache. Cl
 - "Not in RL" is not zero-shot: BC pretraining saw all four tasks.
 - Seeds of stack_blocks_three and blocks_ranking_size were not expert-checked for solvability.
 - Joint was rerun from scratch after a disk-quota failure corrupted the first run's checkpoint (the first run was never evaluated). Its last 3 iterations ran on an H200, everything else on A6000.
-- A first Joint evaluation was preempted at 40/48 episodes of handover_mic on an H200 (16 successes); it is discarded and rerun on an A6000.
+- **Joint was evaluated on an H200 (other methods: A6000)**, because no A6000 was available; rendering may differ, so cross-method comparisons with Joint carry this extra difference. A first Joint evaluation attempt (H200) was preempted at 40/48 handover_mic episodes and its results discarded; the rerun gave the same 16/40 at the same point.
+- On the H200, rendering of handover_block evaluation seed index 3 (seed 145050) hangs. The 8-episode batch containing it was skipped, so Joint has 40/48 episodes there; the other methods are unaffected.
 - Micro-batch size differs per condition (16/8/4) for memory only; gradients agree (cosine >= 0.998).
 
 ## Credits

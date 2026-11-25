@@ -301,6 +301,16 @@ def main():
         out = {}
         for tk in tasks:
             ev, succ, tr = SEEDS[tk][1], [], dict(t_reset=0., t_policy=0., t_env=0., rounds=0)
+            sf = os.path.join(a.ckpt_dir, f"skip_eval_{tk}.json")  # batch starts that hang on this GPU: run the other batches into their own file, no final result
+            if os.path.exists(sf):
+                skip, rf = json.load(open(sf)), os.path.join(a.ckpt_dir, f"rest_eval_{tk}_{tag}.json")
+                rest = json.load(open(rf)) if os.path.exists(rf) else {}
+                for s in range(0, len(ev), a.n_env):
+                    if s in skip or str(s) in rest: continue
+                    torch.manual_seed(10_000 + s)
+                    rest[str(s)] = rollout([(tk, LIM[tk], x, "unseen") for x in ev[s:s + a.n_env]], sde=False, collect=False)[3].tolist()
+                    write_json(rest, rf); log(f"  rest eval {tk} batch {s} {sum(rest[str(s)])}/{a.n_env}")
+                continue
             pf = os.path.join(a.ckpt_dir, f"partial_eval_{tk}_{tag}.json")  # finished batches survive a preemption
             if tag and os.path.exists(pf): succ = json.load(open(pf)); log(f"  eval {tk} continues at {len(succ)}")
             for s in range(len(succ), len(ev), a.n_env):
@@ -442,6 +452,7 @@ def main():
         for tk in eval_tasks:
             if tk in done: continue
             done.update(evaluate([tk], f"it{a.iters}")); write_json(done, f)
+            if tk not in done: continue
             log(f"FINAL EVAL {tk} {done[tk]['success']:.3f} (n={done[tk]['n']})")
         res["evals"]["final"] = done; save()
 

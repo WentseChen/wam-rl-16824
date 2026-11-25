@@ -10,12 +10,13 @@ def mcnemar(b, c):
 
 
 print("task", *R)
-for t in T: print(t, *[f"{sum(r[t]['per_seed'])}/{r[t]['n']}" for r in R.values()])
-print("total", *[f"{sum(sum(r[t]['per_seed']) for t in T)}/{sum(r[t]['n'] for t in T)}" for r in R.values()])
+for t in T: print(t, *[f"{sum(filter(None, r[t]['per_seed']))}/{r[t]['n']}" for r in R.values()])
+print("total", *[f"{sum(sum(filter(None, r[t]['per_seed'])) for t in T)}/{sum(r[t]['n'] for t in T)}" for r in R.values()])
 for m, r in R.items():
-    if m == "bc": continue
-    pairs = {t: list(zip(R["bc"][t]["per_seed"], r[t]["per_seed"])) for t in T}
-    pairs["all"] = sum(pairs.values(), [])
-    for t, p in pairs.items():
-        g, l = sum(not x and y for x, y in p), sum(x and not y for x, y in p)
-        print(f"{m} vs BC, {t}: +{g}/-{l} p={mcnemar(g, l):.3f}")
+    for ref in ("bc", "action", "video"):
+        if ref == m or m == "bc" or (ref != "bc" and m != "joint"): continue
+        pairs = {t: [(x, y) for x, y in zip(R[ref][t]["per_seed"], r[t]["per_seed"]) if y is not None] for t in T}  # None: not evaluated
+        pairs["all"] = sum(pairs.values(), [])
+        for t, p in pairs.items():
+            g, l = sum(not x and y for x, y in p), sum(x and not y for x, y in p)
+            print(f"{m} vs {ref}, {t}: +{g}/-{l} p={mcnemar(g, l):.3f} (n={len(p)})")
