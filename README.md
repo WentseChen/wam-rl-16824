@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status:** all training is finished. Joint lacks 8 of the 48 handover_block episodes (see Limitations).
+> **Status (Nov 25, 22:20 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
 
 ## Results
 
@@ -32,11 +32,39 @@ Joint vs. Action: +15/-14, p=1.00. Joint vs. Video: +24/-9, p=0.014, not correct
 | Iterations skipped (too few informative chunks) | 0 | 0 | 1 |
 | Resumes during training (Adam moments reset) | 2 | 1 | 2 |
 
+The Joint column counts resumes of its second run; its first run was lost to the quota failure.
+
+## Ongoing: longer runs
+
+Goal: train each method to convergence, then test once on the four tasks (A6000 only).
+
+- **Convergence rule (fixed in advance):** every 4 iterations, run a noise-free validation on 24 fixed training seeds per training task (48 episodes). Stop once the last 3 validations set no new best, after at least 24 iterations (cap: 40).
+- **Video-only, rerun:** lr lowered from 1e-6 to 3e-7, from BC. This change was chosen after seeing the 12-iteration test results.
+- **Action-only and Joint:** continue from iteration 12 with unchanged settings. Not started yet; waiting for GPUs.
+
+Video-only (lr 3e-7) validation, successes out of 24 per task:
+
+| Iteration | 0 (BC) | 4 | 8 | 12 |
+|---|---|---|---|---|
+| handover_mic | 12 | 13 | 14 | 14 |
+| stack_blocks_three | 11 | 15 | 16 | 13 |
+| Mean | 47.9% | 58.3% | 62.5% | 56.3% |
+
+15 of 40 iterations done. With lr 3e-7 no iteration has hit the KL stop (12 of 12 at 1e-6 had a max KL of 0.008–0.19; now 0.001–0.01). Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
+
+## Model
+
+Efficient-WAM-RT (`Efficient-WAM-RT_stage3.pt`): a compact Wan 2.2 video model (849M parameters, 12 layers) and an action expert (139M) that reads the video model's KV cache, 10 flow-matching steps, 16-action chunks. UMT5-XXL text embeddings are precomputed and cached. "Video-only" trains the 849M video model, "Action-only" the 139M expert, "Joint" both.
+
 ## Method
 
 - **Policy:** 10 denoising steps as a Gaussian SDE (eta 0.3, sigma_min 0.02); the last step is deterministic because its tiny noise amplifies bf16 error in the log-probability.
 - **GRPO:** 12 iterations x 4 groups x 8 rollouts with the same seed; advantage normalized per group; PPO clip 0.2 per denoising step; AdamW, lr 1e-6, mini-batch 16, at most 512 chunks per iteration, KL stop 0.05, fp32 master weights.
 - **Gradient to the video model:** the stock code detaches the video KV cache; `kv_grad.patch` removes that.
+
+## Compute and time
+
+About 25 GPU-hours so far (22 on RTX A6000, 3 on H200), over about 24 hours of wall-clock time (Nov 24 22:00 to Nov 25 22:20 ET). Each run uses 1 GPU and 8 parallel simulators. One training iteration takes 7–15 min on an A6000; a 4-task test takes about 75 min on an A6000 (about 2 h on an H200). Most wall-clock time was spent waiting for shared-cluster GPUs, and on reruns after a disk-quota failure and preemptions.
 
 ## Files
 
@@ -71,5 +99,7 @@ Run `prep` first (text cache and BC baseline); the others wait for its cache. Cl
 - Micro-batch size differs per condition (16/8/4) for memory only; gradients agree (cosine >= 0.998).
 
 ## Credits
+
+Code and runs were made with Claude Code (Claude Opus 5.5).
 
 Efficient-WAM (Apache-2.0; the source of `cfg.yml` and of the patched line), RoboTwin 2.0 (`RLinf_support` branch, `dca9ec6`), RLinf (Apache-2.0; `rlinf/envs/sim/robotwin/seeds/train_seeds.json`), Wan 2.2.

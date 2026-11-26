@@ -44,6 +44,10 @@ def get_args():
     p.add_argument("--n_eval", type=int, default=48, help="per task")
     p.add_argument("--max_chunks", type=int, default=512, help="chunks used per update, random subset")
     p.add_argument("--save_every", type=int, default=1)
+    p.add_argument("--val_every", type=int, default=0, help="0 = off; every so many iterations evaluate fixed training seeds without exploration noise")
+    p.add_argument("--val_n", type=int, default=24, help="validation seeds per training task")
+    p.add_argument("--patience", type=int, default=3, help="converged: the last so many validations brought no new best")
+    p.add_argument("--min_iters", type=int, default=24)
     p.add_argument("--max_kl", type=float, default=0.05, help="stop the iteration when a mini-batch exceeds it")
     p.add_argument("--rng", type=int, default=0)
     p.add_argument("--park", type=int, default=1, help="0: the optimizer state stays on the GPU during rollouts (less host memory)")
@@ -456,7 +460,27 @@ def main():
             log(f"FINAL EVAL {tk} {done[tk]['success']:.3f} (n={done[tk]['n']})")
         res["evals"]["final"] = done; save()
 
-    for it in range(start, a.iters):
+    valf = os.path.join(a.ckpt_dir, "val.json"); val = json.load(open(valf)) if os.path.exists(valf) else {}
+    def validate(it):
+        if park: move("cpu")
+        torch.cuda.empty_cache(); r = {}
+        for tk in train_tasks:
+            sd, succ = SEEDS[tk][0][:a.val_n], []
+            for s in range(0, len(sd), a.n_env):
+                torch.manual_seed(20_000 + s)
+                succ += rollout([(tk, LIM[tk], x, "seen") for x in sd[s:s + a.n_env]], sde=False, collect=False)[3].tolist()
+            r[tk] = succ
+        val[str(it)] = r; write_json(val, valf)
+        log("VAL", it, {k: round(float(np.mean(v)), 3) for k, v in r.items()})
+    def converged(it):
+        sc = [float(np.mean([np.mean(v) for v in val[k].values()])) for k in sorted(val, key=int)]
+        return it >= a.min_iters and len(sc) > a.patience and max(sc[-a.patience:]) <= max(sc[:-a.patience])
+
+    for it in range(start, a.iters + 1):
+        if a.val_every and it % a.val_every == 0:
+            if str(it) not in val: validate(it)
+            if converged(it): log("CONVERGED at iteration", it); break
+        if it == a.iters: break
         t0 = time.time(); rng = np.random.RandomState(1000 * (a.rng + 1) + it); torch.manual_seed(1000 * (a.rng + 1) + it)
         seeds = [(t, SEEDS[t][0][(it * a.groups_per_task + j) % len(SEEDS[t][0])]) for j in range(a.groups_per_task) for t in train_tasks]
         roll, parts, advs, succs = [], [], [], []
