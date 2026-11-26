@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status (Nov 26, 00:40 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
+> **Status (Nov 26, 02:05 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
 
 ## Results
 
@@ -42,15 +42,29 @@ Goal: train each method to convergence, then test once on the four tasks (A6000 
 - **Video-only, rerun:** lr lowered from 1e-6 to 3e-7, from BC. This change was chosen after seeing the 12-iteration test results.
 - **Action-only and Joint:** continue from iteration 12 with unchanged settings. Not started yet; waiting for GPUs.
 
-Video-only (lr 3e-7) validation, successes out of 24 per task:
+**Video-only (lr 3e-7): converged at iteration 24.** Validation (training seeds), successes out of 24 per task:
 
-| Iteration | 0 (BC) | 4 | 8 | 12 | 16 | 20 |
-|---|---|---|---|---|---|---|
-| handover_mic | 12 | 13 | 14 | 14 | 14 | 14 |
-| stack_blocks_three | 11 | 15 | 16 | 13 | 14 | 12 |
-| Mean | 47.9% | 58.3% | 62.5% | 56.2% | 58.3% | 54.2% |
+| Iteration | 0 (BC) | 4 | 8 | 12 | 16 | 20 | 24 |
+|---|---|---|---|---|---|---|---|
+| handover_mic | 12 | 13 | 14 | 14 | 14 | 14 | 13 |
+| stack_blocks_three | 11 | 15 | 16 | 13 | 14 | 12 | 15 |
+| Mean | 47.9% | 58.3% | 62.5% | 56.2% | 58.3% | 54.2% | 58.3% |
 
-24 of 40 iterations done. The best validation is still iteration 8; iterations 12, 16 and 20 did not beat it, so the run stops at 24 unless that validation sets a new best. KL stops: 0 (7 of 12 at lr 1e-6); per-iteration max KL at most 0.05 (up to 0.19 at 1e-6). Iterations 5 and 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
+No KL stops (7 of 12 at lr 1e-6); iterations 5 and 13 were skipped (every group all-success or all-failure).
+
+Test (A6000, same 48 seeds per task as above), successes out of 48:
+
+| Task | BC | Video, lr 1e-6, 12 it. | Video, lr 3e-7, 24 it. |
+|---|---|---|---|
+| handover_mic (train) | 23 | 21 | 24 |
+| stack_blocks_three (train) | 25 | 27 | 23 |
+| blocks_ranking_size (not in RL) | 19 | 19 | 13 |
+| handover_block (not in RL) | 28 | 22 | 27 |
+| **Total / 192** | 95 (49.5%) | 89 (46.4%) | 87 (45.3%) |
+
+vs. BC: +14/-22, p=0.24; vs. Video lr 1e-6: +20/-22, p=0.88. **The lower lr made training stable and raised training-seed validation (48% to 58–63%), but test success did not improve**, even on the two training tasks: the gain did not carry over from the 60 training seeds to new seeds. The drop on blocks_ranking_size (+5/-11, p=0.21) is not significant.
+
+Action-only and Joint continuation: not started yet; waiting for GPUs.
 
 ## Model
 
