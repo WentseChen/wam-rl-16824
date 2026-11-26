@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status (Nov 25, 22:20 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
+> **Status (Nov 26, 00:40 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
 
 ## Results
 
@@ -44,13 +44,13 @@ Goal: train each method to convergence, then test once on the four tasks (A6000 
 
 Video-only (lr 3e-7) validation, successes out of 24 per task:
 
-| Iteration | 0 (BC) | 4 | 8 | 12 |
-|---|---|---|---|---|
-| handover_mic | 12 | 13 | 14 | 14 |
-| stack_blocks_three | 11 | 15 | 16 | 13 |
-| Mean | 47.9% | 58.3% | 62.5% | 56.3% |
+| Iteration | 0 (BC) | 4 | 8 | 12 | 16 | 20 |
+|---|---|---|---|---|---|---|
+| handover_mic | 12 | 13 | 14 | 14 | 14 | 14 |
+| stack_blocks_three | 11 | 15 | 16 | 13 | 14 | 12 |
+| Mean | 47.9% | 58.3% | 62.5% | 56.2% | 58.3% | 54.2% |
 
-15 of 40 iterations done. No iteration has hit the KL stop so far (7 of 12 did at lr 1e-6); the per-iteration max KL is 0.001–0.05 (0.008–0.19 at 1e-6). Iterations 5 and 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
+24 of 40 iterations done. The best validation is still iteration 8; iterations 12, 16 and 20 did not beat it, so the run stops at 24 unless that validation sets a new best. KL stops: 0 (7 of 12 at lr 1e-6); per-iteration max KL 0.0–0.05 (0.008–0.19 at 1e-6). Iterations 5, 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
 
 ## Model
 
