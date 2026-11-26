@@ -52,7 +52,7 @@ Goal: train each method to convergence, then test once on the four tasks (A6000 
 
 No KL stops (7 of 12 at lr 1e-6); iterations 5 and 13 were skipped (every group all-success or all-failure).
 
-Test (A6000, same 48 seeds per task as above), successes out of 48:
+Test (A6000, the same held-out test seeds as in Results, disjoint from the validation seeds), successes out of 48:
 
 | Task | BC | Video, lr 1e-6, 12 it. | Video, lr 3e-7, 24 it. |
 |---|---|---|---|
