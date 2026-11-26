@@ -43,7 +43,7 @@ The Joint column counts resumes of its second run; its first run was lost to the
 | 12 iterations (lr 1e-6) | 95 | **103** | 89 | 100/184† |
 | Converged, 24 iterations | — | 86 | 87 (lr 3e-7) | 96 |
 
-Training to convergence did not help any method: Action got worse (+13/-30 vs. its 12-iteration result, p=0.014), Video stayed flat, and Joint ended at the BC level (96 vs. 95; +20/-19, p=1.0). Training-seed validation stayed flat or fell after iteration 8–12 while test success fell, which points to overfitting the 60 training seeds per task. **Best result overall: Action-only after 12 iterations, 103/192 (53.6%), not significantly better than BC (p=0.29).**
+Training to convergence did not help any method: Action got worse (+13/-30 vs. its 12-iteration result, p=0.014), Video stayed flat, and Joint ended at the BC level (96 vs. 95; +20/-19, p=1.0). Training-seed validation stopped improving after iteration 8–12, and test success never rose above the 12-iteration results; Video-only even gained 10–15 points on training seeds without any test gain. This points to overfitting the 60 training seeds per task; a held-out validation set would be a better stopping signal. **Best result overall: Action-only after 12 iterations, 103/192 (53.6%), not significantly better than BC (p=0.29).**
 
 
 Goal: train each method to convergence, then test once on the four tasks (A6000 only).
