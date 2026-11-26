@@ -50,7 +50,7 @@ Video-only (lr 3e-7) validation, successes out of 24 per task:
 | stack_blocks_three | 11 | 15 | 16 | 13 | 14 | 12 |
 | Mean | 47.9% | 58.3% | 62.5% | 56.2% | 58.3% | 54.2% |
 
-24 of 40 iterations done. The best validation is still iteration 8; iterations 12, 16 and 20 did not beat it, so the run stops at 24 unless that validation sets a new best. KL stops: 0 (7 of 12 at lr 1e-6); per-iteration max KL 0.0–0.05 (0.008–0.19 at 1e-6). Iterations 5, 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
+24 of 40 iterations done. The best validation is still iteration 8; iterations 12, 16 and 20 did not beat it, so the run stops at 24 unless that validation sets a new best. KL stops: 0 (7 of 12 at lr 1e-6); per-iteration max KL at most 0.05 (up to 0.19 at 1e-6). Iterations 5 and 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
 
 ## Model
 
