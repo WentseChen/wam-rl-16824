@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status (Nov 26, 02:05 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
+> **Status (Nov 26, 06:25 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
 
 ## Results
 
@@ -40,7 +40,7 @@ Goal: train each method to convergence, then test once on the four tasks (A6000 
 
 - **Convergence rule (fixed in advance):** every 4 iterations, run a noise-free validation on 24 fixed training seeds per training task (48 episodes). Stop once the last 3 validations set no new best, after at least 24 iterations (cap: 40).
 - **Video-only, rerun:** lr lowered from 1e-6 to 3e-7, from BC. This change was chosen after seeing the 12-iteration test results.
-- **Action-only and Joint:** continue from iteration 12 with unchanged settings. Not started yet; waiting for GPUs.
+- **Action-only and Joint:** continue from iteration 12 with unchanged settings.
 
 **Video-only (lr 3e-7): converged at iteration 24.** Validation (training seeds), successes out of 24 per task:
 
@@ -64,7 +64,21 @@ Test (A6000, the same held-out test seeds as in Results, disjoint from the valid
 
 vs. BC: +14/-22, p=0.24; vs. Video lr 1e-6: +20/-22, p=0.88. **The lower lr made training stable and raised training-seed validation (48% to 58–63%), but test success did not improve**, even on the two training tasks: the gain did not carry over from the 60 training seeds to new seeds. The drop on blocks_ranking_size (+5/-11, p=0.21) is not significant.
 
-Action-only and Joint continuation: not started yet; waiting for GPUs.
+**Action-only, continued from iteration 12: converged at iteration 24.** Validation mean (training seeds, 48 episodes): 54.2% / 54.2% / 50.0% / 50.0% at iterations 12 / 16 / 20 / 24, i.e. no gain after iteration 12.
+
+Test, successes out of 48:
+
+| Task | BC | Action, 12 it. | Action, 24 it. |
+|---|---|---|---|
+| handover_mic (train) | 23 | 22 | 21 |
+| stack_blocks_three (train) | 25 | 30 | 23 |
+| blocks_ranking_size (not in RL) | 19 | 22 | 15 |
+| handover_block (not in RL) | 28 | 29 | 27 |
+| **Total / 192** | 95 (49.5%) | 103 (53.6%) | 86 (44.8%) |
+
+24 vs. 12 iterations: +13/-30, p=0.014 (not corrected); vs. BC: +16/-25, p=0.21. **Training longer made Action-only worse on test seeds**, mostly on stack_blocks_three and blocks_ranking_size, while training-seed validation stayed flat. Together with Video-only this suggests the policy overfits the 60 training seeds; a validation set of held-out seeds would be a better stopping signal.
+
+Joint continuation: running (from iteration 12; validation at 12: 56.2%).
 
 ## Model
 
