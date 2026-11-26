@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status (Nov 26, 06:25 ET):** the 12-iteration comparison below is final (Joint lacks 8 of 48 handover_block episodes, see Limitations). Longer runs to convergence are in progress, see [Ongoing](#ongoing-longer-runs).
+> **Status (Nov 26, 09:20 ET): all experiments are finished.** The 12-iteration comparison is in Results; the runs to convergence are in [Longer runs](#longer-runs-to-convergence).
 
 ## Results
 
@@ -34,7 +34,17 @@ Joint vs. Action: +15/-14, p=1.00. Joint vs. Video: +24/-9, p=0.014, not correct
 
 The Joint column counts resumes of its second run; its first run was lost to the quota failure.
 
-## Ongoing: longer runs
+## Longer runs (to convergence)
+
+**Summary** (test successes out of 192, all on A6000 except † on H200):
+
+| | BC | Action | Video | Joint |
+|---|---|---|---|---|
+| 12 iterations (lr 1e-6) | 95 | **103** | 89 | 100/184† |
+| Converged, 24 iterations | — | 86 | 87 (lr 3e-7) | 96 |
+
+Training to convergence did not help any method: Action got worse (+13/-30 vs. its 12-iteration result, p=0.014), Video stayed flat, and Joint ended at the BC level (96 vs. 95; +20/-19, p=1.0). Training-seed validation stayed flat or fell after iteration 8–12 while test success fell, which points to overfitting the 60 training seeds per task. **Best result overall: Action-only after 12 iterations, 103/192 (53.6%), not significantly better than BC (p=0.29).**
+
 
 Goal: train each method to convergence, then test once on the four tasks (A6000 only).
 
@@ -78,7 +88,17 @@ Test, successes out of 48:
 
 24 vs. 12 iterations: +13/-30, p=0.014 (not corrected); vs. BC: +16/-25, p=0.21. **Training longer made Action-only worse on test seeds**, mostly on stack_blocks_three and blocks_ranking_size, while training-seed validation stayed flat. Together with Video-only this suggests the policy overfits the 60 training seeds; a validation set of held-out seeds would be a better stopping signal.
 
-Joint continuation: running (from iteration 12; validation at 12: 56.2%).
+**Joint, continued from iteration 12: converged at iteration 24.** Validation mean: 56.2% / 54.2% / 52.1% / 54.2% at iterations 12 / 16 / 20 / 24.
+
+| Task | BC | Joint, 12 it. (H200) | Joint, 24 it. (A6000) |
+|---|---|---|---|
+| handover_mic (train) | 23 | 21 | 22 |
+| stack_blocks_three (train) | 25 | 32 | 29 |
+| blocks_ranking_size (not in RL) | 19 | 23 | 19 |
+| handover_block (not in RL) | 28 | 24/40 | 26 |
+| **Total** | 95/192 | 100/184 | 96/192 |
+
+24 vs. 12 iterations (184 shared seeds): +13/-20, p=0.30; vs. BC: +20/-19, p=1.0. On the A6000 the seed that hangs on the H200 rendered normally.
 
 ## Model
 
@@ -92,7 +112,7 @@ Efficient-WAM-RT (`Efficient-WAM-RT_stage3.pt`): a compact Wan 2.2 video model (
 
 ## Compute and time
 
-About 25 GPU-hours so far (22 on RTX A6000, 3 on H200), over about 24 hours of wall-clock time (Nov 24 22:00 to Nov 25 22:20 ET). Each run uses 1 GPU and 8 parallel simulators. One training iteration takes 7–15 min on an A6000; a 4-task test takes about 75 min on an A6000 (about 2 h on an H200). Most wall-clock time was spent waiting for shared-cluster GPUs, and on reruns after a disk-quota failure and preemptions.
+About 37 GPU-hours in total (33 on RTX A6000, 3 on H200), over about 35 hours of wall-clock time (Nov 24 22:00 to Nov 26 09:15 ET). Each run uses 1 GPU and 8 parallel simulators. One training iteration takes 7–15 min on an A6000; a 4-task test takes about 75 min on an A6000 (about 2 h on an H200). Most wall-clock time was spent waiting for shared-cluster GPUs, and on reruns after a disk-quota failure and preemptions.
 
 ## Files
 
