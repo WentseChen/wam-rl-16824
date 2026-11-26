@@ -14,7 +14,7 @@ Successes out of 48 (paired evaluation seeds, `demo_randomized`, unseen instruct
 | handover_mic (train) | 23 (47.9%) | 22 (45.8%) | 21 (43.8%) | 21 (43.8%) | 69% |
 | stack_blocks_three (train) | 25 (52.1%) | 30 (62.5%) | 27 (56.2%) | 32 (66.7%) | 60% |
 | blocks_ranking_size (not in RL) | 19 (39.6%) | 22 (45.8%) | 19 (39.6%) | 23 (47.9%) | 45% |
-| handover_block (not in RL) | handover_block, first 8 seeds excluded (n=40) | 23 (57.5%) | 25 (62.5%) | 18 (45.0%) | 24 (60.0%)† | |
+| handover_block, first 8 seeds excluded (n=40) | 23 (57.5%) | 25 (62.5%) | 18 (45.0%) | 24 (60.0%)† | |
 | handover_block, all 48 (not in RL) | 28 (58.3%) | 29 (60.4%) | 22 (45.8%) | — | 58% |
 | **Total, seeds Joint has (184)** | 90 (48.9%) | 99 (53.8%) | 85 (46.2%) | 100 (54.3%) | |
 | **Total, all 192** | 95 (49.5%) | 103 (53.6%) | 89 (46.4%) | — | |
@@ -50,7 +50,7 @@ Video-only (lr 3e-7) validation, successes out of 24 per task:
 | stack_blocks_three | 11 | 15 | 16 | 13 |
 | Mean | 47.9% | 58.3% | 62.5% | 56.3% |
 
-15 of 40 iterations done. With lr 3e-7 no iteration has hit the KL stop (12 of 12 at 1e-6 had a max KL of 0.008–0.19; now 0.001–0.01). Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
+15 of 40 iterations done. No iteration has hit the KL stop so far (7 of 12 did at lr 1e-6); the per-iteration max KL is 0.001–0.05 (0.008–0.19 at 1e-6). Iterations 5 and 13 were skipped because every group was all-success or all-failure. Curves: `results/val_video_lr3e-7.json`, `results/train_video_lr3e-7.json`.
 
 ## Model
 
