@@ -48,6 +48,10 @@ def get_args():
     p.add_argument("--val_n", type=int, default=24, help="validation seeds per training task")
     p.add_argument("--patience", type=int, default=3, help="converged: the last so many validations brought no new best")
     p.add_argument("--min_iters", type=int, default=24)
+    p.add_argument("--heldout_val", type=int, default=0, help="1: validate on seeds never used in training (not the first training seeds)")
+    p.add_argument("--test_best", type=int, default=0, help="1: test the checkpoint with the best validation instead of the last one")
+    p.add_argument("--lr_video", type=float, default=0.0, help="video model lr; 0 = --lr")
+    p.add_argument("--sep_clip", type=int, default=0, help="1: clip action expert and video model gradients separately")
     p.add_argument("--max_kl", type=float, default=0.05, help="stop the iteration when a mini-batch exceeds it")
     p.add_argument("--rng", type=int, default=0)
     p.add_argument("--park", type=int, default=1, help="0: the optimizer state stays on the GPU during rollouts (less host memory)")
@@ -295,11 +299,11 @@ def main():
         """RLinf's expert-checked seeds where they exist, plain spaced seeds otherwise (spacing leaves room for unstable-scene retries)."""
         if task in rl:
             x = [int(v) for v in rl[task]["success_seeds"]]
-            return x[:a.n_train_seeds], x[-100:][:a.n_eval]
-        return [100000 + 20 * i for i in range(a.n_train_seeds)], [200000 + 20 * i for i in range(a.n_eval)]
+            return x[:a.n_train_seeds], x[-100:][:a.n_eval], x[200:200 + a.val_n]
+        return [100000 + 20 * i for i in range(a.n_train_seeds)], [200000 + 20 * i for i in range(a.n_eval)], [300000 + 20 * i for i in range(a.val_n)]
     train_tasks, eval_tasks = a.train_tasks.split(","), a.eval_tasks.split(",")
     SEEDS = {t: seeds_of(t) for t in set(train_tasks + eval_tasks)}
-    for t, (x, y) in SEEDS.items(): assert not set(x) & set(y), t
+    for t, (x, y, v) in SEEDS.items(): assert not set(x) & set(y) and not (a.heldout_val and (set(v) & set(x) or set(v) & set(y))), t
 
     def evaluate(tasks, tag=""):
         out = {}
@@ -336,6 +340,7 @@ def main():
         seedf = a.text_cache + ".instr.json"  # "task seed type" -> instruction
         instr = json.load(open(seedf)) if os.path.exists(seedf) else {}
         want = [(t, LIM[t], v, "seen") for t in train_tasks for v in SEEDS[t][0]] + [(t, LIM[t], v, "unseen") for t in eval_tasks for v in SEEDS[t][1]]
+        if a.heldout_val: want += [(t, LIM[t], v, "seen") for t in train_tasks for v in SEEDS[t][2]]
         todo = [w for w in want if f"{w[0]} {w[2]} {w[3]}" not in instr]
         for s in range(0, len(todo), a.n_env):
             batch = todo[s:s + a.n_env]; t = time.time()
@@ -366,7 +371,9 @@ def main():
     train = [(n, p) for n, p in act_p + vid_p if p.requires_grad]
     res["n_train"] = nparam(train)
     masters = [p.detach().float().clone().requires_grad_(True) for _, p in train]  # fp32 copies: bf16 weights would lose small updates
-    opt = torch.optim.AdamW(masters, lr=a.lr, weight_decay=0.0, betas=(0.9, 0.95))
+    is_vid = [".wan_model." in n for n, _ in train]
+    groups = [{"params": [m for m, v in zip(masters, is_vid) if not v], "lr": a.lr}, {"params": [m for m, v in zip(masters, is_vid) if v], "lr": a.lr_video or a.lr}]
+    opt = torch.optim.AdamW([g for g in groups if g["params"]], lr=a.lr, weight_decay=0.0, betas=(0.9, 0.95))
     bc_masters = None
     os.makedirs(a.ckpt_dir, exist_ok=True)
     latest = os.path.join(a.ckpt_dir, "latest.pt")
@@ -440,7 +447,10 @@ def main():
             for m, (_, p) in zip(masters, train):
                 m.grad = None if p.grad is None else p.grad.float()
                 p.grad = None
-            g = float(torch.nn.utils.clip_grad_norm_(masters, 1.0)); gn.append(g)
+            if a.sep_clip:  # each part to norm 1, so the 849M video model cannot shrink the action expert's step
+                g = math.sqrt(sum(float(torch.nn.utils.clip_grad_norm_(gr["params"], 1.0)) ** 2 for gr in groups if gr["params"]))
+            else: g = float(torch.nn.utils.clip_grad_norm_(masters, 1.0))
+            gn.append(g)
             if not math.isfinite(g): raise RuntimeError("non-finite gradient")
             opt.step(); push()
             for m in masters: m.grad = None
@@ -463,15 +473,23 @@ def main():
     valf = os.path.join(a.ckpt_dir, "val.json"); val = json.load(open(valf)) if os.path.exists(valf) else {}
     def validate(it):
         if park: move("cpu")
-        torch.cuda.empty_cache(); r = {}
+        torch.cuda.empty_cache()
+        # finished batches survive a preemption; held-out validation of iteration 0 (BC) is shared by all methods
+        shared = a.heldout_val and it == 0
+        pf = os.path.join(os.path.dirname(a.ckpt_dir) if shared else a.ckpt_dir, "val0_bc_heldout.json" if shared else f"partial_val_{it}.json")
+        r = json.load(open(pf)) if os.path.exists(pf) else {}
         for tk in train_tasks:
-            sd, succ = SEEDS[tk][0][:a.val_n], []
-            for s in range(0, len(sd), a.n_env):
+            sd, succ = (SEEDS[tk][2] if a.heldout_val else SEEDS[tk][0][:a.val_n]), r.get(tk, [])
+            for s in range(len(succ), len(sd), a.n_env):
                 torch.manual_seed(20_000 + s)
                 succ += rollout([(tk, LIM[tk], x, "seen") for x in sd[s:s + a.n_env]], sde=False, collect=False)[3].tolist()
+                r[tk] = succ; write_json(r, pf)
             r[tk] = succ
+        mean = lambda d: float(np.mean([np.mean(v) for v in d.values()]))
+        new_best = all(mean(r) > mean(d) for d in val.values())
+        if a.test_best and new_best: save_ckpt(it, os.path.join(a.ckpt_dir, "best.pt"))  # before val.json, so a crash cannot leave a stale best
         val[str(it)] = r; write_json(val, valf)
-        log("VAL", it, {k: round(float(np.mean(v)), 3) for k, v in r.items()})
+        log("VAL", it, {k: round(float(np.mean(v)), 3) for k, v in r.items()}, "new best" if new_best else "")
     def converged(it):
         sc = [float(np.mean([np.mean(v) for v in val[k].values()])) for k in sorted(val, key=int)]
         return it >= a.min_iters and len(sc) > a.patience and max(sc[-a.patience:]) <= max(sc[:-a.patience])
@@ -508,6 +526,18 @@ def main():
         res["iters"].append(o); save()
         log("ITER", it, {k: (round(v, 4) if isinstance(v, float) else v) for k, v in o.items() if k != "seeds"})
         if (it + 1) % a.save_every == 0 or it + 1 == a.iters: save_ckpt(it + 1, latest)
+    bestf = os.path.join(a.ckpt_dir, "best.pt")
+    if a.test_best and os.path.exists(bestf):
+        c = torch.load(bestf, map_location="cpu"); assert c["names"] == [n for n, _ in train]
+        with torch.no_grad():
+            for m, v in zip(masters, c["masters"]): m.copy_(v.to(m.device))
+        push(); log("testing the best validation checkpoint, iteration", c["it"])
+        bcf = os.path.join(os.path.dirname(a.ckpt_dir), "bc", f"bc_eval_{a.exec}.json")
+        if c["it"] == 0 and os.path.exists(bcf):  # the best is BC itself: its test on the same seeds already exists
+            bc = json.load(open(bcf)); f = os.path.join(a.ckpt_dir, "final_eval.json")
+            write_json({t: dict(bc[t], note="best validation was iteration 0 (BC); BC test reused") for t in eval_tasks}, f)
+            res["evals"]["final"] = json.load(open(f)); save(); envs.close(); log("ALL_DONE best = BC, test reused"); return
+        del c
     run_eval()
     envs.close(); save(); log("ALL_DONE", f"{time.time() - t_start:.0f}s")
 

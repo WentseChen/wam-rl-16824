@@ -3,7 +3,7 @@
 Which part of a world-action model should RL update: the **action** expert, the **video** model, or **both**?
 We fine-tune [Efficient-WAM-RT](https://github.com/jiajun613/Efficient-WAM) with Flow-GRPO (sparse success reward) on two RoboTwin 2.0 tasks and evaluate on four.
 
-> **Status (Nov 26, 09:20 ET): all experiments are finished.** The 12-iteration comparison is in Results; the runs to convergence are in [Longer runs](#longer-runs-to-convergence).
+> **Status (Nov 27, 15:30 ET): all experiments are finished**, including a second setup with held-out validation ([v2](#v2-held-out-validation-larger-batches)).
 
 ## Results
 
@@ -100,6 +100,29 @@ Test, successes out of 48:
 
 24 vs. 12 iterations (184 shared seeds): +13/-20, p=0.30; vs. BC: +20/-19, p=1.0. On the A6000 the seed that hangs on the H200 rendered normally.
 
+## v2: held-out validation, larger batches
+
+A second setup to fix the problems found above, all three methods trained again from BC:
+
+- **Held-out validation:** 24 seeds per training task that are never trained on (disjoint from the test seeds), every 4 iterations; the checkpoint with the best validation is tested.
+- **Larger batches:** 64 episodes per iteration (was 32), up to 1024 chunks per update, 96 training seeds per task.
+- **Joint:** separate learning rates (action expert 1e-6, video model 3e-7) and separate gradient clipping per part.
+- Video: lr 3e-7. Stop when 3 validations in a row set no new best (at least 12 iterations, at most 24). 4 CPU cores per job.
+
+Held-out validation, successes out of 48 (24 per task):
+
+| Iteration | 0 (BC) | 4 | 8 | 12 |
+|---|---|---|---|---|
+| Action | 70.8% | 60.4% | 58.3% | 60.4% |
+| Video | 70.8% | 68.8% | 64.6% | 66.7% |
+| Joint | 70.8% | 56.2% | 54.2% | 50.0% |
+
+**All three stopped at iteration 12 with BC (iteration 0) as the best checkpoint**, so each method's test result is BC's: 95/192. Action and Joint fell 10–20 points on held-out seeds; Video, with the smaller learning rate, fell least (4–6 points) but never beat BC. Each run took 12 iterations (about 590–600 optimizer steps, 1–3 KL stops).
+
+**Conclusion:** with this reward (sparse task success), batch size and 1 seed, GRPO fine-tuning of Efficient-WAM-RT did not improve held-out success for any choice of trained parameters. The 12-iteration gains in Results are within noise and do not survive held-out model selection.
+
+Files: `results/val_{action,video,joint}_v2.json`, `results/train_{action,video,joint}_v2.json`. Flags: `--heldout_val 1 --test_best 1 --groups_per_task 4 --max_chunks 1024 --n_train_seeds 96` (and `--lr_video`, `--sep_clip` for Joint).
+
 ## Model
 
 Efficient-WAM-RT (`Efficient-WAM-RT_stage3.pt`): a compact Wan 2.2 video model (849M parameters, 12 layers) and an action expert (139M) that reads the video model's KV cache, 10 flow-matching steps, 16-action chunks. UMT5-XXL text embeddings are precomputed and cached. "Video-only" trains the 849M video model, "Action-only" the 139M expert, "Joint" both.
@@ -112,7 +135,7 @@ Efficient-WAM-RT (`Efficient-WAM-RT_stage3.pt`): a compact Wan 2.2 video model (
 
 ## Compute and time
 
-About 37 GPU-hours in total (33 on RTX A6000, 3 on H200), over about 35 hours of wall-clock time (Nov 24 22:00 to Nov 26 09:15 ET). Each run uses 1 GPU and 8 parallel simulators. One training iteration takes 7–15 min on an A6000; a 4-task test takes about 75 min on an A6000 (about 2 h on an H200). Most wall-clock time was spent waiting for shared-cluster GPUs, and on reruns after a disk-quota failure and preemptions.
+About 61 GPU-hours in total (57 on RTX A6000, 3 on H200; v2 alone 24), over about 65 hours of wall-clock time (Nov 24 22:00 to Nov 27 15:22 ET). Each run uses 1 GPU and 8 parallel simulators. One training iteration takes 7–15 min on an A6000; a 4-task test takes about 75 min on an A6000 (about 2 h on an H200). Most wall-clock time was spent waiting for shared-cluster GPUs, and on reruns after a disk-quota failure and preemptions.
 
 ## Files
 
