@@ -117,7 +117,7 @@ Held-out validation, successes out of 48 (24 per task):
 | Video | 70.8% | 68.8% | 64.6% | 66.7% |
 | Joint | 70.8% | 56.2% | 54.2% | 50.0% |
 
-**All three stopped at iteration 12 with BC (iteration 0) as the best checkpoint**, so each method's test result is BC's: 95/192. Action and Joint fell 10–20 points on held-out seeds; Video, with the smaller learning rate, fell least (4–6 points) but never beat BC. Each run took 12 iterations (about 590–600 optimizer steps, 1–3 KL stops).
+**All three stopped at iteration 12 with BC (iteration 0) as the best checkpoint**, so each method's test result is BC's: 95/192. Action fell 10–12 points and Joint 15–21 points on held-out seeds; Video, with the smaller learning rate, fell least (2–6 points) but never beat BC. Each run took 12 iterations (about 590–600 optimizer steps, 1–3 KL stops).
 
 **Conclusion:** with this reward (sparse task success), batch size and 1 seed, GRPO fine-tuning of Efficient-WAM-RT did not improve held-out success for any choice of trained parameters. The 12-iteration gains in Results are within noise and do not survive held-out model selection.
 
